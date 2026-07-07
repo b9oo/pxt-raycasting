@@ -467,163 +467,116 @@ namespace Render {
 
         }
 
-        render() {
-            // based on https://lodev.org/cgtutor/raycasting.html
-
+                render() {
             this.selfXFpx = this.xFpx
             this.selfYFpx = this.yFpx
 
             let drawStart = 0
             let drawHeight = 0
             let lastDist = -1, lastTexX = -1, lastMapX = -1, lastMapY = -1
-            this.viewZPos = this.spriteMotionZ[this.sprSelf.id].p + (this.sprSelf._height as any as number) - (2<<fpx) + this.cameraOffsetZ_fpx
-            let cameraRangeAngle = Math.atan(this.fov)+.1 //tolerance for spr center just out of camera
-            //debug
-            // const ms=control.millis()
+            this.viewZPos = this.spriteMotionZ[this.sprSelf.id].p + (this.sprSelf._height as any as number) - (2 << fpx) + this.cameraOffsetZ_fpx
 
-            let ms:number
-            //floor
-            if (0) {
-                ms = control.benchmark(() => {
-                    const posZ = (SH * this.viewZPos / this.tilemapScaleSize) | 0
-                    for (let yFloor = SHHalf; yFloor < SH; yFloor++) {
-                        const rowDistance = (posZ / (yFloor - SHHalf)) | 0
-                        let floorX = this.selfXFpx * fpx_scale + (rowDistance * (this.dirXFpx + this.planeX))
-                        let floorY = this.selfYFpx * fpx_scale + (rowDistance * (this.dirYFpx + this.planeY))
-                        const floorStepX = -Math.idiv(rowDistance * this.planeX, SWHalf)
-                        const floorStepY = -Math.idiv(rowDistance * this.planeY, SWHalf)
-                        for (let xFloor = 0; xFloor < SW; xFloor++) { //21
-                            const tileType = this.mapData[4 + (floorX >> fpx2) + (floorY >> fpx2) * this.map.width] //this.getTileIndex(floorX,floorY);//this.map.getTile(floorX, floorY)
-                            {
-                                const floorTex = this.textures[tileType]
-                                if (floorTex) {
-                                    const tx = (floorX >> (fpx2_4)) & 0xF //17
-                                    const ty = (floorY >> (fpx2_4)) & 0xF
-                                    const c = floorTex.getPixel(tx, ty)
-                                    this.tempScreen.setPixel(xFloor, yFloor, c)
-                                }
-                            }
-                            floorX += floorStepX
-                            floorY += floorStepY
-                        }
-                    }
-                })
-                this.tempScreen.print(ms.toString(), 0, 10)
-            }
-
-            // ms=control.benchmark(()=>{
             for (let x = 0; x < SW; x++) {
-                const cameraX: number = one - Math.idiv(((x+this.cameraOffsetX) << fpx) << 1, SW)
+                const cameraX: number = one - Math.idiv(((x + this.cameraOffsetX) << fpx) << 1, SW)
                 let rayDirX = this.dirXFpx + (this.planeX * cameraX >> fpx)
                 let rayDirY = this.dirYFpx + (this.planeY * cameraX >> fpx)
 
-                // avoid division by zero
                 if (rayDirX == 0) rayDirX = 1
                 if (rayDirY == 0) rayDirY = 1
 
                 let mapX = this.selfXFpx >> fpx
                 let mapY = this.selfYFpx >> fpx
 
-                // length of ray from current position to next x or y-side
                 let sideDistX = 0, sideDistY = 0
-
-                // length of ray from one x or y-side to next x or y-side
-                const deltaDistX = Math.abs(Math.idiv(one2, rayDirX));
-                const deltaDistY = Math.abs(Math.idiv(one2, rayDirY));
+                const deltaDistX = Math.abs(Math.idiv(one2, rayDirX))
+                const deltaDistY = Math.abs(Math.idiv(one2, rayDirY))
 
                 let mapStepX = 0, mapStepY = 0
+                let sideWallHit = false
 
-                let sideWallHit = false;
-
-                //calculate step and initial sideDist
                 if (rayDirX < 0) {
-                    mapStepX = -1;
-                    sideDistX = ((this.selfXFpx - (mapX << fpx)) * deltaDistX) >> fpx;
+                    mapStepX = -1
+                    sideDistX = ((this.selfXFpx - (mapX << fpx)) * deltaDistX) >> fpx
                 } else {
-                    mapStepX = 1;
-                    sideDistX = (((mapX << fpx) + one - this.selfXFpx) * deltaDistX) >> fpx;
+                    mapStepX = 1
+                    sideDistX = (((mapX << fpx) + one - this.selfXFpx) * deltaDistX) >> fpx
                 }
                 if (rayDirY < 0) {
-                    mapStepY = -1;
-                    sideDistY = ((this.selfYFpx - (mapY << fpx)) * deltaDistY) >> fpx;
+                    mapStepY = -1
+                    sideDistY = ((this.selfYFpx - (mapY << fpx)) * deltaDistY) >> fpx
                 } else {
-                    mapStepY = 1;
-                    sideDistY = (((mapY << fpx) + one - this.selfYFpx) * deltaDistY) >> fpx;
+                    mapStepY = 1
+                    sideDistY = (((mapY << fpx) + one - this.selfYFpx) * deltaDistY) >> fpx
                 }
 
                 let color = 0
-
-                let isOutsideMap=false
+                let isOutsideMap = false
                 while (true) {
-                    //jump to next map square, OR in x-direction, OR in y-direction
                     if (sideDistX < sideDistY) {
-                        sideDistX += deltaDistX;
-                        mapX += mapStepX;
-                        sideWallHit = false;
+                        sideDistX += deltaDistX
+                        mapX += mapStepX
+                        sideWallHit = false
                     } else {
-                        sideDistY += deltaDistY;
-                        mapY += mapStepY;
-                        sideWallHit = true;
+                        sideDistY += deltaDistY
+                        mapY += mapStepY
+                        sideWallHit = true
                     }
 
-                    if (this.map.isOutsideMap(mapX, mapY)){
-                        isOutsideMap=true
+                    if (this.map.isOutsideMap(mapX, mapY)) {
+                        isOutsideMap = true
                         break
                     }
-                    if (this.map.isWall(mapX, mapY)){
-                        color = this.mapData [4 + (mapX | 0) + (mapY | 0) * this.map.width]
-                        break; // hit!
+                    if (this.map.isWall(mapX, mapY)) {
+                        color = this.mapData[4 + (mapX | 0) + (mapY | 0) * this.map.width]
+                        break
                     }
                 }
 
-                if (isOutsideMap)
-                    continue
+                if (isOutsideMap) continue
 
-                let perpWallDist:number
+                let perpWallDist: number
                 let wallX = 0
                 if (!sideWallHit) {
                     perpWallDist = Math.idiv(((mapX << fpx) - this.selfXFpx + (1 - mapStepX << fpx - 1)) << fpx, rayDirX)
-                    wallX = this.selfYFpx + (perpWallDist * rayDirY >> fpx);
+                    wallX = this.selfYFpx + (perpWallDist * rayDirY >> fpx)
                 } else {
                     perpWallDist = Math.idiv(((mapY << fpx) - this.selfYFpx + (1 - mapStepY << fpx - 1)) << fpx, rayDirY)
-                    wallX = this.selfXFpx + (perpWallDist * rayDirX >> fpx);
+                    wallX = this.selfXFpx + (perpWallDist * rayDirX >> fpx)
                 }
                 wallX &= FPX_MAX
 
-                // color = (color - 1) * 2
-                // if (sideWallHit) color++
-
                 const tex = this.textures[color]
-                if (!tex)
-                    continue
+                if (!tex) continue
 
-                let texX = (wallX * tex.width) >> fpx;
-                // if ((!sideWallHit && rayDirX > 0) || (sideWallHit && rayDirY < 0))
-                //     texX = tex.width - texX - 1;
+                let texX = (wallX * tex.width) >> fpx
 
-                if (perpWallDist !== lastDist && (texX !== lastTexX || mapX !== lastMapX || mapY !== lastMapY)) {//neighbor line of tex share same parameters
+                if (perpWallDist !== lastDist && (texX !== lastTexX || mapX !== lastMapX || mapY !== lastMapY)) {
                     const lineHeight = (this.wallHeightInView / perpWallDist)
-                    const drawEnd = lineHeight * this.viewZPos / this.tilemapScaleSize / fpx_scale;
-                    drawStart = drawEnd - lineHeight * (this._wallZScale) + 1;
+                    const drawEnd = lineHeight * this.viewZPos / this.tilemapScaleSize / fpx_scale
+                    drawStart = drawEnd - lineHeight * (this._wallZScale) + 1
                     drawHeight = (Math.ceil(drawEnd) - Math.ceil(drawStart) + 1)
                     drawStart += SHHalf
-                    
+
                     lastDist = perpWallDist
                     lastTexX = texX
                     lastMapX = mapX
                     lastMapY = mapY
                 }
-                //fix start&end points to avoid regmatic between lines
+
+                // Draw original texture first
                 this.tempScreen.blitRow(x, drawStart, tex, texX, drawHeight)
+
+                // === IMPROVED SHADER TINT ===
+                const distance = perpWallDist / fpx_scale
+                const shadedColor = raycastShaders.applyWallShader(x, distance, 0xFFFFFF, drawHeight)
+
+                // Gentle tint overlay
+                if (shadedColor !== 0xFFFFFF) {
+                    this.tempScreen.drawLine(x, drawStart, x, drawStart + drawHeight - 1, shadedColor)
+                }
 
                 this.dist[x] = perpWallDist
             }
-            // })
-            // this.tempScreen.print(ms.toString(), 0, 20)
-
-            //debug
-            // info.setScore(control.millis()-ms)
-            // this.tempScreen.print(lastPerpWallDist.toString(), 0,0,7 )
 
             this.drawSprites()
         }
